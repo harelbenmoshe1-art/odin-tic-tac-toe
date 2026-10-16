@@ -28,14 +28,14 @@ const GameController = (() => {
   const player1 = Player("Player 1", "X");
   const player2 = Player("Player 2", "O");
 
-  let currentPlayer = player1;
-  let gameOver = false;
+  let activePlayer = player1;
+  let isGameOver = false;
 
-  const getCurrentPlayer = () => currentPlayer;
-  const getgameOver = () => gameOver;
+  const getActivePlayer = () => activePlayer;
+  const getIsGameOver = () => isGameOver;
 
   const switchTurn = () => {
-    currentPlayer = currentPlayer === player1 ? player2 : player1;
+    activePlayer = activePlayer === player1 ? player2 : player1;
   };
 
   const winningCombinations = [
@@ -46,8 +46,8 @@ const GameController = (() => {
 
   const checkWin = (board) => {
     for (let combo of winningCombinations) {
-      const [i, j, k] = combo;
-      if (board[i] && board[i] === board[j] && board[i] === board[k]) {
+      const [a, b, c] = combo;
+      if (board[a] && board[a] === board[b] && board[a] === board[c]) {
         return true;
       }
     }
@@ -55,47 +55,91 @@ const GameController = (() => {
   };
 
   const checkTie = (board) => {
-    return board.every(cell => cell !== '') && !checkWin();
+    return board.every(cell => cell !== '') && !checkWin(board);
   };
 
   const playRound = (index) => {
-    if (gameOver) {
-      console.log("Game is over! Reset to play again.");
-      return;
-    }
+    if (isGameOver) return;
 
-    if (Gameboard.setCell(index, currentPlayer.marker)) {
-      const board = Gameboard.getBoard();
-      if (checkWin(board)) {
-        gameOver = true;
-        console.log(`${currentPlayer.name} wins!`);
-        return;
+    if (Gameboard.setCell(index, activePlayer.marker)) {
+      const currentBoard = Gameboard.getBoard();
+
+      if (checkWin(currentBoard)) {
+        isGameOver = true;
+        return { status: 'win', winner: activePlayer };
       }
 
-      if (checkTie(board)) {
-        gameOver = true;
-        console.log("It's a tie!");
-        return;
+      if (checkTie(currentBoard)) {
+        isGameOver = true;
+        return { status: 'tie' };
       }
 
       switchTurn();
-    } else {
-      console.log("Spot already taken! Choose another.");
+      return { status: 'ongoing', activePlayer };
     }
+    return null; // spot taken
   };
 
   const resetGame = () => {
     Gameboard.resetBoard();
-    currentPlayer = player1;
-    gameOver = false;
-    console.log("Game reset. Player 1's turn.");
+    activePlayer = player1;
+    isGameOver = false;
   };
 
   return {
-    getCurrentPlayer,
+    getActivePlayer,
     playRound,
     getBoard: Gameboard.getBoard,
     resetGame,
-    getgameOver
+    getIsGameOver
   };
+})();
+
+
+const DisplayController = (() => {
+  const cellElements = document.querySelectorAll('.cell');
+  const turnMessageElement = document.getElementById('turn-message');
+  const restartButton = document.getElementById('restart-btn');
+
+  const renderBoard = () => {
+    const currentBoard = GameController.getBoard();
+    cellElements.forEach((cell, index) => {
+      cell.textContent = currentBoard[index];
+    });
+  };
+
+  const updateMessage = (message) => {  // update whos turn is it
+    turnMessageElement.textContent = message;
+  };
+
+  cellElements.forEach(cell => {
+    cell.addEventListener('click', (event) => {
+      if (GameController.getIsGameOver()) return;
+
+      const index = event.target.dataset.index;
+      const result = GameController.playRound(index);
+
+      if (result) {
+        renderBoard(); // update visual board after a move
+
+        if (result.status === 'win') {
+          updateMessage(`${result.winner.name} wins!`);
+        } else if (result.status === 'tie') {
+          updateMessage("It's a tie!");
+        } else if (result.status === 'ongoing') {
+          updateMessage(`${result.activePlayer.name}'s turn (${result.activePlayer.marker})`);
+        }
+      }
+    });
+  });
+
+  restartButton.addEventListener('click', () => {
+    GameController.resetGame();
+    renderBoard();
+    updateMessage("Player 1's turn (X)");
+  });
+
+  renderBoard();
+
+  return { renderBoard };
 })();
